@@ -94,6 +94,21 @@ class DimensionResult(BaseModel):
     evidence: list[EvidenceItem] = []
 
 
+class RunMetadata(BaseModel):
+    app_version: str
+    generated_at_utc: str
+    whisper_model: str
+    whisper_device: str
+    whisper_compute_type: str
+    llm_model: Optional[str] = None
+    rubric_status: str = "PROVISIONAL - weights and thresholds are design choices, not scientifically validated"
+    weights: dict[str, float] = {}
+    thresholds: dict[str, float] = {}
+    transcript_words: int = 0
+    frame_count: int = 0
+    data_sent_to_external_provider: list[str] = []
+
+
 class FinalAssessment(BaseModel):
     status: Status
     overall_score: Optional[float] = None
@@ -110,3 +125,4 @@ class FinalAssessment(BaseModel):
     frames_analyzed: list[FrameInfo] = []
     model_used: Optional[str] = None
     message: Optional[str] = None
+    metadata: Optional[RunMetadata] = None

@@ -94,19 +94,19 @@ class BadTranscriber:
 
 
 def test_pipeline_transcription_failure(synth_video, settings):
-    r = run_pipeline(str(synth_video), settings, BadTranscriber(), AssessmentService(settings, FakeLLM()))
+    r = run_pipeline(str(synth_video), settings, BadTranscriber(), AssessmentService(settings, FakeLLM()), consent_to_send=True)
     assert r.status == Status.FAILED and "Transcription failed" in r.message
 
 
 def test_pipeline_invalid_media_and_unexpected_error(tmp_path, settings):
     p = tmp_path / "x.mp4"; p.write_bytes(b"")
-    assert run_pipeline(str(p), settings, BadTranscriber(), AssessmentService(settings, FakeLLM())).status == Status.FAILED
+    assert run_pipeline(str(p), settings, BadTranscriber(), AssessmentService(settings, FakeLLM()), consent_to_send=True).status == Status.FAILED
 
 
 def test_pipeline_unexpected_exception_hides_details(synth_video, settings):
     class Boom:
         def transcribe(self, p): raise RuntimeError("/secret/path blew up")
-    r = run_pipeline(str(synth_video), settings, Boom(), AssessmentService(settings, FakeLLM()))
+    r = run_pipeline(str(synth_video), settings, Boom(), AssessmentService(settings, FakeLLM()), consent_to_send=True)
     assert r.status == Status.FAILED and "secret" not in r.message
 
 

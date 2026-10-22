@@ -8,3 +8,7 @@ samples/
 *.mov
 *.wav
 tmp/
+reports/
+transcripts/
+*.srt
+*.vtt

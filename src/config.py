@@ -17,7 +17,9 @@ def _f(name: str, default: float) -> float:
 @dataclass(frozen=True)
 class Settings:
     anthropic_api_key: str = ""
-    llm_model: str = "claude-sonnet-4-6"
+    llm_provider: str = "ollama"
+    ollama_base_url: str = "http://localhost:11434"
+    llm_model: str = "qwen2.5vl:7b"
     whisper_model: str = "small"
     whisper_device: str = "cpu"
     whisper_compute_type: str = "int8"
@@ -33,7 +35,9 @@ class Settings:
     def from_env(cls) -> "Settings":
         return cls(
             anthropic_api_key=os.getenv("ANTHROPIC_API_KEY", ""),
-            llm_model=os.getenv("LLM_MODEL", "claude-sonnet-4-6"),
+            llm_provider=os.getenv("LLM_PROVIDER", "ollama").strip().lower(),
+            ollama_base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/"),
+            llm_model=os.getenv("LLM_MODEL", "qwen2.5vl:7b"),
             whisper_model=os.getenv("WHISPER_MODEL", "small"),
             whisper_device=os.getenv("WHISPER_DEVICE", "cpu"),
             whisper_compute_type=os.getenv("WHISPER_COMPUTE_TYPE", "int8"),

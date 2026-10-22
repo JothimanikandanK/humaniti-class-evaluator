@@ -4,6 +4,8 @@ import base64
 import json
 import logging
 import re
+import urllib.error
+import urllib.request
 from typing import Protocol
 
 from .config import Settings
@@ -70,6 +72,74 @@ class AnthropicLLM:
             raise AssessmentError("The AI service is unavailable or returned an error.") from e
         return "".join(b.text for b in r.content if getattr(b, "type", "") == "text")
 
+
+
+class OllamaLLM:
+    """Local Ollama chat client using the Ollama HTTP API (no API key required)."""
+    def __init__(self, settings: Settings):
+        self.base_url = settings.ollama_base_url.rstrip("/")
+        self.model = settings.llm_model
+        self.timeout = 300
+
+    def complete(self, system: str, content: list[dict]) -> str:
+        # Convert Anthropic-style content blocks into Ollama's chat message format.
+        text_parts: list[str] = []
+        images: list[str] = []
+        for block in content:
+            if block.get("type") == "text":
+                text_parts.append(str(block.get("text", "")))
+            elif block.get("type") == "image":
+                source = block.get("source", {})
+                if source.get("type") == "base64" and source.get("data"):
+                    images.append(source["data"])
+        user_message = {"role": "user", "content": "\n\n".join(text_parts)}
+        if images:
+            user_message["images"] = images
+        payload = {
+            "model": self.model,
+            "stream": False,
+            "format": "json",
+            "messages": [
+                {"role": "system", "content": system},
+                user_message,
+            ],
+            "options": {"temperature": 0},
+        }
+        req = urllib.request.Request(
+            f"{self.base_url}/api/chat",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout) as response:
+                result = json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                raise AssessmentError(
+                    f"Ollama model '{self.model}' is unavailable. Run `ollama pull {self.model}`."
+                ) from e
+            log.exception("Ollama HTTP error")
+            raise AssessmentError("Ollama returned an error. Check the local Ollama service and model.") from e
+        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as e:
+            log.exception("Ollama connection failed")
+            raise AssessmentError(
+                "Could not connect to Ollama. Start Ollama and verify OLLAMA_BASE_URL (default http://localhost:11434)."
+            ) from e
+        message = result.get("message", {})
+        text = message.get("content", "") if isinstance(message, dict) else ""
+        if not text:
+            raise AssessmentError("Ollama returned an empty response. Try again or check the selected model.")
+        return text
+
+
+def make_llm(settings: Settings) -> LLMClient:
+    provider = settings.llm_provider.strip().lower()
+    if provider == "ollama":
+        return OllamaLLM(settings)
+    if provider == "anthropic":
+        return AnthropicLLM(settings)
+    raise AssessmentError("Unsupported LLM_PROVIDER. Use 'ollama' or 'anthropic'.")
 
 def parse_llm_json(raw: str) -> LLMAssessment:
     text = raw.strip()
@@ -172,7 +242,7 @@ class AssessmentService:
                          f"{self.s.min_transcript_words}); a defensible assessment is not possible."),
                 audio_features=audio, frames_analyzed=frames,
                 evidence_coverage={"transcript": False, "audio": audio is not None, "visual": bool(frames)})
-        llm = self.llm or AnthropicLLM(self.s)
+        llm = self.llm or make_llm(self.s)
         content = _build_content(transcript, audio, frames)
         parsed = None
         last_err: AssessmentError | None = None
